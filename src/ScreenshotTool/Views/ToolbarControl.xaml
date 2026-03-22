@@ -1,0 +1,189 @@
+<UserControl x:Class="ScreenshotTool.Views.ToolbarControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:ScreenshotTool.Models"
+             Height="44" Background="Transparent">
+    <Border Background="#F0222222" CornerRadius="8" Padding="6,4" VerticalAlignment="Center"
+            MouseLeftButtonDown="Border_MouseLeftButtonDown"
+            MouseLeftButtonUp="Border_MouseLeftButtonUp"
+            MouseMove="Border_MouseMove">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="8" Opacity="0.4" ShadowDepth="2"/>
+        </Border.Effect>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Annotation Tools -->
+            <ToggleButton x:Name="ArrowBtn" ToolTip="Arrow (A)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Arrow}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 4,20 L 20,4"/>
+                        <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              Data="M 20,4 L 13,5 L 19,11 Z"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <ToggleButton x:Name="RectBtn" ToolTip="Rectangle (R)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Rectangle}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="2" StrokeLineJoin="Round"
+                              Data="M 3,5 L 21,5 L 21,19 L 3,19 Z"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <ToggleButton x:Name="EllipseBtn" ToolTip="Ellipse (E)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Ellipse}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Ellipse Canvas.Left="2" Canvas.Top="4" Width="20" Height="16"
+                                 Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                 StrokeThickness="2" Fill="Transparent"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <ToggleButton x:Name="LineBtn" ToolTip="Line (L)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Line}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 4,20 L 20,4"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <ToggleButton x:Name="TextBtn" ToolTip="Text (T)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Text}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 5,4 L 19,4 M 12,4 L 12,20"/>
+                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="2" StrokeStartLineCap="Round"
+                              Data="M 8,20 L 16,20"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <ToggleButton x:Name="BlurBtn" ToolTip="Blur (B)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Blur}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <!-- Mosaic grid pattern -->
+                        <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Opacity="0.8"
+                              Data="M 2,2 L 8,2 L 8,8 L 2,8 Z M 10,2 L 16,2 L 16,8 L 10,8 Z M 18,2 L 22,2 L 22,8 L 18,8 Z"/>
+                        <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Opacity="0.4"
+                              Data="M 6,10 L 12,10 L 12,16 L 6,16 Z M 18,10 L 22,10 L 22,16 L 18,16 Z"/>
+                        <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Opacity="0.6"
+                              Data="M 2,16 L 8,16 L 8,22 L 2,22 Z M 14,16 L 22,16 L 22,22 L 14,22 Z"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+            <ToggleButton x:Name="FreehandBtn" ToolTip="Freehand (F)" Width="32" Height="32"
+                          Style="{StaticResource ToolToggleStyle}"
+                          Tag="{x:Static models:AnnotationTool.Freehand}"
+                          Click="ToolButton_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Fill="Transparent" StrokeLineJoin="Round"
+                              Data="M 3,17 C 6,8 9,20 12,12 C 15,4 18,16 21,8"/>
+                    </Canvas>
+                </Viewbox>
+            </ToggleButton>
+
+            <Rectangle Width="1" Height="24" Fill="#555" Margin="6,0"/>
+
+            <!-- Color Picker -->
+            <Border x:Name="ColorPickerBorder" Width="28" Height="28" CornerRadius="4"
+                    BorderBrush="#666" BorderThickness="1" Margin="2" Cursor="Hand"
+                    MouseEnter="ColorPicker_MouseEnter"
+                    MouseLeftButtonDown="ColorPicker_Click">
+                <Border.Background>
+                    <SolidColorBrush x:Name="ColorBrush" Color="Red"/>
+                </Border.Background>
+            </Border>
+
+            <!-- Color Palette Popup -->
+            <Popup x:Name="ColorPopup" StaysOpen="False" Placement="Top"
+                   PlacementTarget="{Binding ElementName=ColorPickerBorder}"
+                   AllowsTransparency="True">
+                <Border Background="#2A2A2A" CornerRadius="8" Padding="8"
+                        BorderBrush="#444" BorderThickness="1"
+                        MouseLeave="ColorPopup_MouseLeave">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="12" Opacity="0.5" ShadowDepth="3"/>
+                    </Border.Effect>
+                    <WrapPanel Width="170">
+                        <Button Background="Red" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="Red"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="#FF5722" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="#FF5722"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="Orange" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="Orange"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="Yellow" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="Yellow"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="#4CAF50" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="#4CAF50"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="#2196F3" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="#2196F3"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="#9C27B0" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="#9C27B0"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="White" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="White"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="Black" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="Black"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                        <Button Background="#607D8B" Width="26" Height="26" Margin="3" Click="ColorSelected" Tag="#607D8B"
+                                Style="{StaticResource ColorSwatchStyle}"/>
+                    </WrapPanel>
+                </Border>
+            </Popup>
+
+            <!-- Stroke Width -->
+            <Slider x:Name="StrokeSlider" Width="60" Minimum="1" Maximum="10" Value="2"
+                    VerticalAlignment="Center" Margin="4,0"
+                    ToolTip="Stroke Width" ValueChanged="StrokeSlider_ValueChanged"/>
+
+            <Rectangle Width="1" Height="24" Fill="#555" Margin="6,0"/>
+
+            <!-- Confirm / Cancel -->
+            <Button ToolTip="Confirm (Enter)" Width="32" Height="32"
+                    Style="{StaticResource ToolButtonStyle}"
+                    Click="Confirm_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="#4CAF50" StrokeThickness="2.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 4,12 L 10,18 L 20,6"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
+            <Button ToolTip="Cancel (Esc)" Width="32" Height="32"
+                    Style="{StaticResource ToolButtonStyle}"
+                    Click="Cancel_Click">
+                <Viewbox Width="18" Height="18">
+                    <Canvas Width="24" Height="24">
+                        <Path Stroke="#F44336" StrokeThickness="2.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 6,6 L 18,18 M 18,6 L 6,18"/>
+                    </Canvas>
+                </Viewbox>
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>
