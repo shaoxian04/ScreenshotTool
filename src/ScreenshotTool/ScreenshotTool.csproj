@@ -9,6 +9,14 @@
     <StartupObject>ScreenshotTool.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+
+    <!-- App metadata -->
+    <AssemblyTitle>Screenshot Tool</AssemblyTitle>
+    <Product>Screenshot Tool</Product>
+    <Description>A lightweight screenshot tool with annotation support. Press Ctrl+Shift+S to capture.</Description>
+    <Version>1.0.0</Version>
+    <!-- Add an app.ico file and uncomment to set exe icon -->
+    <!-- <ApplicationIcon>app.ico</ApplicationIcon> -->
   </PropertyGroup>
 
   <ItemGroup>
