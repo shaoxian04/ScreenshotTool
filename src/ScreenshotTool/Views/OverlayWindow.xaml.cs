@@ -203,7 +203,9 @@ public partial class OverlayWindow : Window
                     return;
                 }
 
+                // Clicked empty space inside selection — just deselect annotation, stay in Selected state
                 DeselectAnnotation();
+                return;
             }
 
             // Clicking outside selection — reset if no tool active
