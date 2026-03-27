@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Threading;
 using ScreenshotTool.Models;
 
 namespace ScreenshotTool.Views;
@@ -13,20 +14,29 @@ public partial class ToolbarControl : UserControl
     public event EventHandler<double>? StrokeWidthChanged;
     public event EventHandler? ConfirmClicked;
     public event EventHandler? CancelClicked;
+    public event EventHandler? OcrClicked;
 
     private readonly ToggleButton[] _toolButtons;
+    private readonly DispatcherTimer _paletteCloseTimer;
 
     public ToolbarControl()
     {
         InitializeComponent();
         _toolButtons = new[] { ArrowBtn, RectBtn, EllipseBtn, LineBtn, TextBtn, BlurBtn, FreehandBtn };
+
+        _paletteCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _paletteCloseTimer.Tick += (_, _) =>
+        {
+            _paletteCloseTimer.Stop();
+            if (!ColorPickerBorder.IsMouseOver && !ColorPalette.IsMouseOver)
+                ColorPalette.Visibility = Visibility.Collapsed;
+        };
     }
 
     private void ToolButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton clicked)
         {
-            // Uncheck all other buttons
             foreach (var btn in _toolButtons)
             {
                 if (btn != clicked) btn.IsChecked = false;
@@ -42,28 +52,46 @@ public partial class ToolbarControl : UserControl
 
     private void ColorPicker_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        ColorPopup.IsOpen = true;
+        _paletteCloseTimer.Stop();
+        ShowColorPalette();
+    }
+
+    private void ColorPicker_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        _paletteCloseTimer.Start();
     }
 
     private void ColorPicker_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        ColorPopup.IsOpen = !ColorPopup.IsOpen;
+        if (ColorPalette.Visibility == Visibility.Visible)
+            ColorPalette.Visibility = Visibility.Collapsed;
+        else
+            ShowColorPalette();
+        e.Handled = true;
     }
 
-    private void ColorPopup_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    private void ShowColorPalette()
     {
-        // Small delay to allow moving back — close only if mouse truly left
-        var popup = ColorPopup;
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
-        {
-            if (!ColorPickerBorder.IsMouseOver && popup.IsOpen)
-            {
-                // Check if mouse is over the popup content
-                var popupChild = popup.Child as Border;
-                if (popupChild != null && !popupChild.IsMouseOver)
-                    popup.IsOpen = false;
-            }
-        });
+        ColorPalette.Visibility = Visibility.Visible;
+        // Position the palette above the toolbar bar with no gap
+        ColorPalette.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var paletteHeight = ColorPalette.DesiredSize.Height;
+        Canvas.SetTop(ColorPalette, -paletteHeight);
+        // Center horizontally over the color picker
+        var pickerPos = ColorPickerBorder.TranslatePoint(new Point(0, 0), ToolbarCanvas);
+        var paletteWidth = ColorPalette.DesiredSize.Width;
+        var left = pickerPos.X + ColorPickerBorder.ActualWidth / 2 - paletteWidth / 2;
+        Canvas.SetLeft(ColorPalette, left);
+    }
+
+    private void ColorPalette_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        _paletteCloseTimer.Stop();
+    }
+
+    private void ColorPalette_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        _paletteCloseTimer.Start();
     }
 
     private void ColorSelected(object sender, RoutedEventArgs e)
@@ -72,7 +100,7 @@ public partial class ToolbarControl : UserControl
         {
             var color = (Color)ColorConverter.ConvertFromString(colorStr);
             ColorBrush.Color = color;
-            ColorPopup.IsOpen = false;
+            ColorPalette.Visibility = Visibility.Collapsed;
             ColorChanged?.Invoke(this, color);
         }
     }
@@ -80,6 +108,11 @@ public partial class ToolbarControl : UserControl
     private void StrokeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         StrokeWidthChanged?.Invoke(this, e.NewValue);
+    }
+
+    private void Ocr_Click(object sender, RoutedEventArgs e)
+    {
+        OcrClicked?.Invoke(this, EventArgs.Empty);
     }
 
     private void Confirm_Click(object sender, RoutedEventArgs e)

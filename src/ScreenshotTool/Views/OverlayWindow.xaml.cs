@@ -89,11 +89,12 @@ public partial class OverlayWindow : Window
         Toolbar.StrokeWidthChanged += OnStrokeWidthChanged;
         Toolbar.ConfirmClicked += (_, _) => ConfirmCapture();
         Toolbar.CancelClicked += (_, _) => CancelCapture();
+        Toolbar.OcrClicked += async (_, _) => await RunOcrAsync();
 
         MouseLeftButtonDown += OnMouseDown;
         MouseLeftButtonUp += OnMouseUp;
         MouseMove += OnMouseMove;
-        KeyDown += OnKeyDown;
+        PreviewKeyDown += OnKeyDown;
     }
 
     #region Overlay Drawing
@@ -833,6 +834,9 @@ public partial class OverlayWindow : Window
     {
         _selectedAnnotation = annotation;
         RedrawAnnotations();
+
+        // Return keyboard focus to the window so Enter/Escape/Delete work
+        Keyboard.Focus(this);
     }
 
     private void DeselectAnnotation()
@@ -841,6 +845,9 @@ public partial class OverlayWindow : Window
         _selectedAnnotation = null;
         _annotationHandleRects.Clear();
         RedrawAnnotations();
+
+        // Return keyboard focus to the window so Enter/Escape work
+        Keyboard.Focus(this);
     }
 
     private string? GetHitAnnotationHandle(Point point)
@@ -1135,6 +1142,31 @@ public partial class OverlayWindow : Window
     private void CancelCapture()
     {
         Close();
+    }
+
+    private async Task RunOcrAsync()
+    {
+        if (_state != CaptureState.Selected && _state != CaptureState.Annotating) return;
+
+        var text = await OcrService.RecognizeAsync(_screenshot, _selection.Bounds, _dpiScale);
+
+        if (text == null)
+        {
+            // OCR engine unavailable (no language packs installed)
+            Close();
+            new ToastWindow("OCR unavailable — install a language pack in Windows Settings").ShowToast();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            new ToastWindow("No text found in selection").ShowToast();
+            return;
+        }
+
+        Clipboard.SetText(text);
+        Close();
+        new ToastWindow("Text copied to clipboard").ShowToast();
     }
 
     #endregion
