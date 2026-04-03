@@ -5,7 +5,8 @@ public enum CaptureState
     Idle,
     Selecting,
     Selected,
-    Annotating
+    Annotating,
+    OcrSelecting
 }
 
 public enum AnnotationTool
