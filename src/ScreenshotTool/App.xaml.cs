@@ -37,9 +37,9 @@ public partial class App : Application
         var captureService = new ScreenCaptureService();
         var monitorService = new MonitorService();
 
-        var screenshot = captureService.CaptureAllScreens(monitorService.GetVirtualDesktopBounds());
         var monitors = monitorService.GetMonitors();
-        var virtualBounds = monitorService.GetVirtualDesktopBounds();
+
+        var (screenshot, virtualBounds) = captureService.CaptureAllScreens();
 
         _activeOverlay = new OverlayWindow(screenshot, monitors, virtualBounds);
         _activeOverlay.Closed += (_, _) => _activeOverlay = null;

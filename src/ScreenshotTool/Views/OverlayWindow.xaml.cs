@@ -17,7 +17,7 @@ public partial class OverlayWindow : Window
     private readonly BitmapSource _screenshot;
     private readonly List<MonitorInfo> _monitors;
     private readonly System.Drawing.Rectangle _virtualBounds;
-    private readonly double _dpiScale;
+    private double _dpiScale;
 
     // State
     private CaptureState _state = CaptureState.Idle;
@@ -57,6 +57,16 @@ public partial class OverlayWindow : Window
     private readonly Dictionary<string, Rect> _annotationHandleRects = new();
     private const double AnnotationHandleSize = 8;
 
+    // OCR region selection
+    private Point _ocrRegionStart;
+    private System.Windows.Shapes.Rectangle? _ocrRectVisual;
+    private Border? _ocrHintLabel;
+    private CaptureState _stateBeforeOcr;
+
+    // OCR result panel drag
+    private bool _isDraggingOcrPanel;
+    private Point _ocrPanelDragOffset;
+
     public OverlayWindow(BitmapSource screenshot, List<MonitorInfo> monitors,
         System.Drawing.Rectangle virtualBounds)
     {
@@ -68,10 +78,7 @@ public partial class OverlayWindow : Window
         _dpiScale = Win32Interop.GetDpiScale();
 
         // Position window to cover virtual desktop (convert physical pixels to DIPs)
-        Left = virtualBounds.X / _dpiScale;
-        Top = virtualBounds.Y / _dpiScale;
-        Width = virtualBounds.Width / _dpiScale;
-        Height = virtualBounds.Height / _dpiScale;
+        PositionWindowForDpi();
 
         // Set screenshot as background (Stretch="Fill" maps physical pixels to DIP-sized window)
         ScreenshotImage.Source = screenshot;
@@ -83,18 +90,52 @@ public partial class OverlayWindow : Window
         // Draw initial dark overlay
         DrawOverlay(null);
 
+        // After the window is shown, Windows assigns its rendering DPI based on the monitor
+        // containing its top-left corner. This may differ from GetDpiForSystem() in multi-monitor
+        // setups with mixed DPI. Re-read the actual DPI and reposition to ensure correct coverage.
+        Loaded += OnWindowLoaded;
+
         // Wire toolbar events
         Toolbar.ToolSelected += OnToolSelected;
         Toolbar.ColorChanged += OnColorChanged;
         Toolbar.StrokeWidthChanged += OnStrokeWidthChanged;
         Toolbar.ConfirmClicked += (_, _) => ConfirmCapture();
         Toolbar.CancelClicked += (_, _) => CancelCapture();
-        Toolbar.OcrClicked += async (_, _) => await RunOcrAsync();
+        Toolbar.OcrClicked += (_, _) => RunOcrAsync();
 
         MouseLeftButtonDown += OnMouseDown;
         MouseLeftButtonUp += OnMouseUp;
         MouseMove += OnMouseMove;
         PreviewKeyDown += OnKeyDown;
+    }
+
+    private void PositionWindowForDpi()
+    {
+        Left = _virtualBounds.X / _dpiScale;
+        Top = _virtualBounds.Y / _dpiScale;
+        Width = _virtualBounds.Width / _dpiScale;
+        Height = _virtualBounds.Height / _dpiScale;
+    }
+
+    private void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        // Get the actual DPI that Windows assigned to this window based on the monitor
+        // containing its top-left corner. This may differ from GetDpiForSystem() in multi-monitor
+        // setups with mixed DPI. Re-read the actual DPI and reposition to ensure correct coverage.
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget == null) return;
+
+        var actualDpiScale = source.CompositionTarget.TransformToDevice.M11;
+        if (Math.Abs(actualDpiScale - _dpiScale) < 0.001) return; // already correct
+
+        _dpiScale = actualDpiScale;
+
+        PositionWindowForDpi();
+
+        ScreenshotImage.Width = Width;
+        ScreenshotImage.Height = Height;
+
+        DrawOverlay(null);
     }
 
     #region Overlay Drawing
@@ -137,6 +178,25 @@ public partial class OverlayWindow : Window
         {
             CommitTextInput();
             e.Handled = true;
+            return;
+        }
+
+        if (_state == CaptureState.OcrSelecting)
+        {
+            _ocrRegionStart = _mouseDownPoint;
+            // Create dashed OCR region rectangle
+            _ocrRectVisual = new System.Windows.Shapes.Rectangle
+            {
+                Stroke = new SolidColorBrush(Color.FromRgb(0x00, 0xBF, 0xFF)),
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection { 4, 2 },
+                Fill = new SolidColorBrush(Color.FromArgb(0x22, 0x00, 0xBF, 0xFF)),
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(_ocrRectVisual, _ocrRegionStart.X);
+            Canvas.SetTop(_ocrRectVisual, _ocrRegionStart.Y);
+            MainCanvas.Children.Add(_ocrRectVisual);
+            CaptureMouse();
             return;
         }
 
@@ -231,6 +291,19 @@ public partial class OverlayWindow : Window
     {
         var pos = e.GetPosition(MainCanvas);
 
+        if (_state == CaptureState.OcrSelecting && e.LeftButton == MouseButtonState.Pressed && _ocrRectVisual != null)
+        {
+            var x = Math.Min(pos.X, _ocrRegionStart.X);
+            var y = Math.Min(pos.Y, _ocrRegionStart.Y);
+            var w = Math.Abs(pos.X - _ocrRegionStart.X);
+            var h = Math.Abs(pos.Y - _ocrRegionStart.Y);
+            Canvas.SetLeft(_ocrRectVisual, x);
+            Canvas.SetTop(_ocrRectVisual, y);
+            _ocrRectVisual.Width = w;
+            _ocrRectVisual.Height = h;
+            return;
+        }
+
         if (_state == CaptureState.Selecting && e.LeftButton == MouseButtonState.Pressed)
         {
             _selection.EndPoint = pos;
@@ -273,6 +346,17 @@ public partial class OverlayWindow : Window
     {
         var pos = e.GetPosition(MainCanvas);
         ReleaseMouseCapture();
+
+        if (_state == CaptureState.OcrSelecting)
+        {
+            var ocrRegion = new Rect(
+                Math.Min(pos.X, _ocrRegionStart.X),
+                Math.Min(pos.Y, _ocrRegionStart.Y),
+                Math.Abs(pos.X - _ocrRegionStart.X),
+                Math.Abs(pos.Y - _ocrRegionStart.Y));
+            _ = FinishOcrSelectionAsync(ocrRegion);
+            return;
+        }
 
         if (_state == CaptureState.Selecting)
         {
@@ -338,6 +422,18 @@ public partial class OverlayWindow : Window
     {
         if (e.Key == Key.Escape)
         {
+            if (_state == CaptureState.OcrSelecting)
+            {
+                CancelOcrSelection();
+                e.Handled = true;
+                return;
+            }
+            if (OcrResultPanel.Visibility == Visibility.Visible)
+            {
+                OcrClose_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
             CancelCapture();
             e.Handled = true;
         }
@@ -425,20 +521,33 @@ public partial class OverlayWindow : Window
     private void UpdateToolbarPosition()
     {
         var bounds = _selection.Bounds;
-        Toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var toolbarWidth = Toolbar.DesiredSize.Width;
-        var toolbarHeight = Toolbar.DesiredSize.Height;
+        var barSize = Toolbar.BarSize;
+        var toolbarWidth = barSize.Width;
+        var toolbarHeight = barSize.Height;
 
+        // Center horizontally over selection, clamped to window
         var left = bounds.X + (bounds.Width - toolbarWidth) / 2;
-        var top = bounds.Bottom + 12;
-
-        if (top + toolbarHeight > Height)
-        {
-            top = bounds.Y - toolbarHeight - 12;
-        }
-
         left = Math.Max(4, Math.Min(left, Width - toolbarWidth - 4));
-        top = Math.Max(4, top);
+
+        // Find the monitor that contains the selection center, and get its bottom edge in DIPs.
+        // This prevents the toolbar from being placed in a dead zone between monitors.
+        var selCenterPhys = new System.Drawing.Point(
+            (int)((bounds.X + bounds.Width / 2) * _dpiScale + _virtualBounds.X),
+            (int)((bounds.Y + bounds.Height / 2) * _dpiScale + _virtualBounds.Y));
+        var monBounds = Win32Interop.GetMonitorPhysicalBounds(selCenterPhys);
+        var monBottomDip = (monBounds.Y + monBounds.Height - _virtualBounds.Y) / _dpiScale;
+        var monTopDip = (monBounds.Y - _virtualBounds.Y) / _dpiScale;
+
+        // Prefer below the selection; flip above if it would go below the monitor
+        var top = bounds.Bottom + 8;
+        if (top + toolbarHeight > monBottomDip - 4)
+            top = bounds.Y - toolbarHeight - 8;
+
+        // If above would go above the monitor, place inside selection near top
+        // (near-bottom can land in the region below the primary monitor's height, which
+        // may not render reliably in multi-monitor setups with different screen heights)
+        if (top < monTopDip + 4)
+            top = bounds.Y + 8;
 
         Canvas.SetLeft(Toolbar, left);
         Canvas.SetTop(Toolbar, top);
@@ -741,7 +850,6 @@ public partial class OverlayWindow : Window
         var bounds = blur.Bounds;
         if (bounds.Width < 2 || bounds.Height < 2) return;
 
-        // Convert DIP coordinates to physical pixels for bitmap access
         var region = new System.Windows.Int32Rect(
             (int)(bounds.X * _dpiScale), (int)(bounds.Y * _dpiScale),
             (int)(bounds.Width * _dpiScale), (int)(bounds.Height * _dpiScale));
@@ -1131,6 +1239,7 @@ public partial class OverlayWindow : Window
         CommitTextInput();
 
         var selBounds = _selection.Bounds;
+
         ClipboardService.CopyToClipboard(_screenshot, selBounds, _annotations, _dpiScale);
 
         Close();
@@ -1144,15 +1253,74 @@ public partial class OverlayWindow : Window
         Close();
     }
 
-    private async Task RunOcrAsync()
+    private void RunOcrAsync()
     {
         if (_state != CaptureState.Selected && _state != CaptureState.Annotating) return;
+        StartOcrSelection();
+    }
 
-        var text = await OcrService.RecognizeAsync(_screenshot, _selection.Bounds, _dpiScale);
+    private void StartOcrSelection()
+    {
+        _stateBeforeOcr = _state;
+        _state = CaptureState.OcrSelecting;
+        CommitTextInput();
+        DeselectAnnotationSilent();
+        Toolbar.Visibility = Visibility.Collapsed;
+        Cursor = System.Windows.Input.Cursors.Cross;
+
+        // Hint label
+        var hint = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x00, 0x00, 0x00)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10, 4, 10, 4),
+            IsHitTestVisible = false
+        };
+        var hintText = new TextBlock
+        {
+            Text = "Drag to select OCR region  ·  Esc to cancel",
+            Foreground = Brushes.White,
+            FontSize = 13,
+            FontFamily = new System.Windows.Media.FontFamily("Segoe UI")
+        };
+        hint.Child = hintText;
+        hint.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Canvas.SetLeft(hint, (Width - hint.DesiredSize.Width) / 2);
+        Canvas.SetTop(hint, _selection.Bounds.Top - hint.DesiredSize.Height - 10);
+        MainCanvas.Children.Add(hint);
+        _ocrHintLabel = hint;
+    }
+
+    private void CancelOcrSelection()
+    {
+        CleanupOcrVisuals();
+        _state = _stateBeforeOcr;
+        Toolbar.Visibility = Visibility.Visible;
+        UpdateToolbarPosition();
+        Cursor = System.Windows.Input.Cursors.Arrow;
+    }
+
+    private async Task FinishOcrSelectionAsync(Rect ocrRegion)
+    {
+        CleanupOcrVisuals();
+        _state = _stateBeforeOcr;
+        Cursor = System.Windows.Input.Cursors.Arrow;
+
+        // Clamp OCR region to selection bounds
+        ocrRegion.Intersect(_selection.Bounds);
+        if (ocrRegion.IsEmpty || ocrRegion.Width < 4 || ocrRegion.Height < 4)
+        {
+            Toolbar.Visibility = Visibility.Visible;
+            UpdateToolbarPosition();
+            return;
+        }
+
+        var text = await OcrService.RecognizeAsync(_screenshot, ocrRegion, _dpiScale);
 
         if (text == null)
         {
-            // OCR engine unavailable (no language packs installed)
+            Toolbar.Visibility = Visibility.Visible;
+            UpdateToolbarPosition();
             Close();
             new ToastWindow("OCR unavailable — install a language pack in Windows Settings").ShowToast();
             return;
@@ -1160,13 +1328,109 @@ public partial class OverlayWindow : Window
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            new ToastWindow("No text found in selection").ShowToast();
+            Toolbar.Visibility = Visibility.Visible;
+            UpdateToolbarPosition();
+            new ToastWindow("No text found in selected region").ShowToast();
             return;
         }
 
-        Clipboard.SetText(text);
+        // Show the result panel — hide toolbar while panel is open
+        ShowOcrResultPanel(text, ocrRegion);
+    }
+
+    private void ShowOcrResultPanel(string text, Rect ocrRegion)
+    {
+        OcrResultText.Text = text;
+        OcrResultPanel.Visibility = Visibility.Visible;
+
+        // Position the panel: prefer below the OCR region, fall back to above or center
+        OcrResultPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var panelW = OcrResultPanel.DesiredSize.Width;
+        var panelH = OcrResultPanel.DesiredSize.Height;
+
+        var left = ocrRegion.X + (ocrRegion.Width - panelW) / 2;
+        var top = ocrRegion.Bottom + 12;
+
+        if (top + panelH > Height) top = ocrRegion.Y - panelH - 12;
+        if (top < 4) top = (Height - panelH) / 2;
+        left = Math.Max(4, Math.Min(left, Width - panelW - 4));
+
+        Canvas.SetLeft(OcrResultPanel, left);
+        Canvas.SetTop(OcrResultPanel, top);
+
+        OcrResultText.Focus();
+        OcrResultText.SelectAll();
+    }
+
+    private void OcrCopy_Click(object sender, RoutedEventArgs e)
+    {
+        var text = OcrResultText.Text;
+        if (!string.IsNullOrWhiteSpace(text))
+            Clipboard.SetText(text);
+
+        OcrResultPanel.Visibility = Visibility.Collapsed;
+        Toolbar.Visibility = Visibility.Visible;
+        UpdateToolbarPosition();
         Close();
         new ToastWindow("Text copied to clipboard").ShowToast();
+    }
+
+    private void OcrClose_Click(object sender, RoutedEventArgs e)
+    {
+        OcrResultPanel.Visibility = Visibility.Collapsed;
+        Toolbar.Visibility = Visibility.Visible;
+        UpdateToolbarPosition();
+        Keyboard.Focus(this);
+    }
+
+    // Allow the panel to be dragged
+    private void OcrPanel_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingOcrPanel = true;
+        var panelPos = new Point(Canvas.GetLeft(OcrResultPanel), Canvas.GetTop(OcrResultPanel));
+        var mousePos = e.GetPosition(MainCanvas);
+        _ocrPanelDragOffset = new Point(mousePos.X - panelPos.X, mousePos.Y - panelPos.Y);
+        OcrResultPanel.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OcrPanel_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isDraggingOcrPanel) return;
+        var pos = e.GetPosition(MainCanvas);
+        Canvas.SetLeft(OcrResultPanel, pos.X - _ocrPanelDragOffset.X);
+        Canvas.SetTop(OcrResultPanel, pos.Y - _ocrPanelDragOffset.Y);
+        e.Handled = true;
+    }
+
+    private void OcrPanel_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingOcrPanel = false;
+        OcrResultPanel.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
+    private void CleanupOcrVisuals()
+    {
+        if (_ocrRectVisual != null)
+        {
+            MainCanvas.Children.Remove(_ocrRectVisual);
+            _ocrRectVisual = null;
+        }
+        if (_ocrHintLabel != null)
+        {
+            MainCanvas.Children.Remove(_ocrHintLabel);
+            _ocrHintLabel = null;
+        }
+    }
+
+    // Variant that skips the Keyboard.Focus call (used during OCR selection cancel)
+    private void DeselectAnnotationSilent()
+    {
+        if (_selectedAnnotation == null) return;
+        _selectedAnnotation = null;
+        _annotationHandleRects.Clear();
+        RedrawAnnotations();
     }
 
     #endregion

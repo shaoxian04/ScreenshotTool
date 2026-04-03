@@ -7,6 +7,7 @@ Press **Ctrl+Shift+S** anywhere to start capturing.
 ## Features
 
 - **Region or full-screen capture** - drag to select a region, or click to capture the entire monitor
+- **OCR (text extraction)** - click the OCR button in the toolbar to select a region and copy its text to clipboard
 - **7 annotation tools** - Arrow, Rectangle, Ellipse, Line, Text, Blur, and Freehand drawing
 - **Resize and move annotations** - select any annotation after drawing to reposition or resize it
 - **Color and thickness picker** - customize annotation appearance with 10 preset colors and adjustable stroke width
@@ -58,6 +59,7 @@ dotnet publish src/ScreenshotTool/ScreenshotTool.csproj -c Release -r win-x64 --
 | **Undo / Redo** | `Ctrl+Z` / `Ctrl+Y` |
 | **Confirm capture** | Press `Enter` or click the green checkmark |
 | **Cancel** | Press `Esc` or click the red X |
+| **Extract text (OCR)** | Click the OCR button in the toolbar, then drag a region |
 
 ## Keyboard Shortcuts
 
