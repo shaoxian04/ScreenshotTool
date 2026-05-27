@@ -314,6 +314,7 @@ public partial class OverlayWindow : Window
         {
             _selection.EndPoint = pos;
             UpdateSelectionVisuals();
+            Cursor = _cursorService?.PickFor(pos) ?? System.Windows.Input.Cursors.Cross;
         }
         else if (_isMovingAnnotation && e.LeftButton == MouseButtonState.Pressed)
         {
@@ -341,6 +342,7 @@ public partial class OverlayWindow : Window
         else if (_isDrawingAnnotation && e.LeftButton == MouseButtonState.Pressed)
         {
             UpdateAnnotation(pos);
+            Cursor = _cursorService?.PickFor(pos) ?? System.Windows.Input.Cursors.Cross;
         }
         else if (_state == CaptureState.Selected || _state == CaptureState.Annotating)
         {
@@ -688,7 +690,7 @@ public partial class OverlayWindow : Window
         {
             if (_currentTool != AnnotationTool.None)
             {
-                Cursor = System.Windows.Input.Cursors.Cross;
+                Cursor = _cursorService?.PickFor(pos) ?? System.Windows.Input.Cursors.Cross;
             }
             else if (_selectedAnnotation != null && _selectedAnnotation.HitTest(pos))
             {
@@ -705,7 +707,7 @@ public partial class OverlayWindow : Window
             return;
         }
 
-        Cursor = System.Windows.Input.Cursors.Cross;
+        Cursor = _cursorService?.PickFor(pos) ?? System.Windows.Input.Cursors.Cross;
     }
 
     #endregion
@@ -1272,7 +1274,8 @@ public partial class OverlayWindow : Window
         CommitTextInput();
         DeselectAnnotationSilent();
         Toolbar.Visibility = Visibility.Collapsed;
-        Cursor = System.Windows.Input.Cursors.Cross;
+        Cursor = _cursorService?.PickFor(Mouse.GetPosition(MainCanvas))
+            ?? System.Windows.Input.Cursors.Cross;
 
         // Hint label
         var hint = new Border
