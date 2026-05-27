@@ -18,6 +18,7 @@ public partial class OverlayWindow : Window
     private readonly List<MonitorInfo> _monitors;
     private readonly System.Drawing.Rectangle _virtualBounds;
     private double _dpiScale;
+    private AdaptiveCursorService? _cursorService;
 
     // State
     private CaptureState _state = CaptureState.Idle;
@@ -87,6 +88,10 @@ public partial class OverlayWindow : Window
         Canvas.SetLeft(ScreenshotImage, 0);
         Canvas.SetTop(ScreenshotImage, 0);
 
+        // Adaptive crosshair: black on light backgrounds, white on dark.
+        _cursorService = new AdaptiveCursorService(screenshot, _dpiScale);
+        Closed += (_, _) => _cursorService?.Dispose();
+
         // Draw initial dark overlay
         DrawOverlay(null);
 
@@ -129,6 +134,7 @@ public partial class OverlayWindow : Window
         if (Math.Abs(actualDpiScale - _dpiScale) < 0.001) return; // already correct
 
         _dpiScale = actualDpiScale;
+        if (_cursorService != null) _cursorService.DpiScale = _dpiScale;
 
         PositionWindowForDpi();
 
