@@ -30,11 +30,17 @@ public sealed class AdaptiveCursorService : IDisposable
     private const double SwitchToBlackAbove = 145; // luminance above this => black crosshair
     private const double InitialThreshold = 128;
 
-    private readonly BitmapSource _screenshot;
     private readonly WpfCursor _blackCursor;
     private readonly WpfCursor _whiteCursor;
     private readonly SafeCursorHandle? _blackHandle;
     private readonly SafeCursorHandle? _whiteHandle;
+
+    // The screenshot pixels are copied once into a flat BGRA32 buffer so per-mouse-move
+    // sampling indexes an array instead of allocating WPF imaging objects on the hot path.
+    private readonly byte[]? _pixels;
+    private readonly int _pixelW;
+    private readonly int _pixelH;
+    private readonly int _stride;
 
     private bool? _lastWasWhite; // null until first decision
     private bool _disposed;
@@ -45,8 +51,23 @@ public sealed class AdaptiveCursorService : IDisposable
 
     public AdaptiveCursorService(BitmapSource screenshot, double dpiScale)
     {
-        _screenshot = screenshot;
         DpiScale = dpiScale;
+
+        // Copy the screenshot once into a flat BGRA32 buffer. If this fails, _pixels stays
+        // null and sampling falls back to the black cursor (a safe default).
+        try
+        {
+            var converted = new FormatConvertedBitmap(screenshot, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            _pixelW = converted.PixelWidth;
+            _pixelH = converted.PixelHeight;
+            _stride = _pixelW * 4;
+            _pixels = new byte[_stride * _pixelH];
+            converted.CopyPixels(_pixels, _stride, 0);
+        }
+        catch
+        {
+            _pixels = null;
+        }
 
         (_blackCursor, _blackHandle) = BuildCursor(armColor: DrawingColor.Black, outlineColor: DrawingColor.White);
         (_whiteCursor, _whiteHandle) = BuildCursor(armColor: DrawingColor.White, outlineColor: DrawingColor.Black);
@@ -131,9 +152,9 @@ public sealed class AdaptiveCursorService : IDisposable
         if (_lastWasWhite is null)
             wantWhite = luminance.Value < InitialThreshold;
         else if (_lastWasWhite.Value)
-            wantWhite = luminance.Value < SwitchToBlackAbove;   // stay white until clearly light
+            wantWhite = luminance.Value < SwitchToBlackAbove;   // currently white: switch to black only when clearly light (>=145)
         else
-            wantWhite = luminance.Value < SwitchToWhiteBelow;   // stay black until clearly dark
+            wantWhite = luminance.Value < SwitchToWhiteBelow;   // currently black: switch to white only when clearly dark (<110)
 
         _lastWasWhite = wantWhite;
         return wantWhite ? _whiteCursor : _blackCursor;
@@ -145,35 +166,36 @@ public sealed class AdaptiveCursorService : IDisposable
     /// </summary>
     private double? SampleLuminance(System.Windows.Point dipPos)
     {
+        var pixels = _pixels;
+        if (pixels == null) return null;
+
         try
         {
-            int px = (int)(dipPos.X * DpiScale);
-            int py = (int)(dipPos.Y * DpiScale);
+            int cx = (int)(dipPos.X * DpiScale);
+            int cy = (int)(dipPos.Y * DpiScale);
             int half = SampleBlock / 2;
 
-            int x = Math.Clamp(px - half, 0, _screenshot.PixelWidth - 1);
-            int y = Math.Clamp(py - half, 0, _screenshot.PixelHeight - 1);
-            int w = Math.Min(SampleBlock, _screenshot.PixelWidth - x);
-            int h = Math.Min(SampleBlock, _screenshot.PixelHeight - y);
-            if (w <= 0 || h <= 0) return null;
-
-            var region = new System.Windows.Int32Rect(x, y, w, h);
-            var cropped = new CroppedBitmap(_screenshot, region);
-
-            // Normalize to BGRA32 so byte layout is predictable.
-            var converted = new FormatConvertedBitmap(cropped, System.Windows.Media.PixelFormats.Bgra32, null, 0);
-            int stride = w * 4;
-            var pixels = new byte[stride * h];
-            converted.CopyPixels(pixels, stride, 0);
+            int x0 = Math.Clamp(cx - half, 0, _pixelW - 1);
+            int y0 = Math.Clamp(cy - half, 0, _pixelH - 1);
+            int x1 = Math.Min(x0 + SampleBlock, _pixelW);
+            int y1 = Math.Min(y0 + SampleBlock, _pixelH);
 
             long totalB = 0, totalG = 0, totalR = 0;
-            int count = w * h;
-            for (int i = 0; i < pixels.Length; i += 4)
+            int count = 0;
+            for (int yy = y0; yy < y1; yy++)
             {
-                totalB += pixels[i];
-                totalG += pixels[i + 1];
-                totalR += pixels[i + 2];
+                int row = yy * _stride;
+                for (int xx = x0; xx < x1; xx++)
+                {
+                    int idx = row + xx * 4; // BGRA32: B, G, R, A
+                    totalB += pixels[idx];
+                    totalG += pixels[idx + 1];
+                    totalR += pixels[idx + 2];
+                    count++;
+                }
             }
+
+            if (count == 0) return null;
 
             double r = (double)totalR / count;
             double gr = (double)totalG / count;
