@@ -117,6 +117,75 @@ public sealed class AdaptiveCursorService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns the crosshair cursor that best contrasts with the screenshot under the
+    /// given point (in DIP coordinates on the overlay canvas). Never throws.
+    /// </summary>
+    public WpfCursor PickFor(System.Windows.Point dipPos)
+    {
+        double? luminance = SampleLuminance(dipPos);
+        if (luminance is null)
+            return _blackCursor; // safe default
+
+        bool wantWhite;
+        if (_lastWasWhite is null)
+            wantWhite = luminance.Value < InitialThreshold;
+        else if (_lastWasWhite.Value)
+            wantWhite = luminance.Value < SwitchToBlackAbove;   // stay white until clearly light
+        else
+            wantWhite = luminance.Value < SwitchToWhiteBelow;   // stay black until clearly dark
+
+        _lastWasWhite = wantWhite;
+        return wantWhite ? _whiteCursor : _blackCursor;
+    }
+
+    /// <summary>
+    /// Averages an NxN physical-pixel block of the screenshot centered on the pointer and
+    /// returns its perceptual luminance (0..255), or null if sampling is not possible.
+    /// </summary>
+    private double? SampleLuminance(System.Windows.Point dipPos)
+    {
+        try
+        {
+            int px = (int)(dipPos.X * DpiScale);
+            int py = (int)(dipPos.Y * DpiScale);
+            int half = SampleBlock / 2;
+
+            int x = Math.Clamp(px - half, 0, _screenshot.PixelWidth - 1);
+            int y = Math.Clamp(py - half, 0, _screenshot.PixelHeight - 1);
+            int w = Math.Min(SampleBlock, _screenshot.PixelWidth - x);
+            int h = Math.Min(SampleBlock, _screenshot.PixelHeight - y);
+            if (w <= 0 || h <= 0) return null;
+
+            var region = new System.Windows.Int32Rect(x, y, w, h);
+            var cropped = new CroppedBitmap(_screenshot, region);
+
+            // Normalize to BGRA32 so byte layout is predictable.
+            var converted = new FormatConvertedBitmap(cropped, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            int stride = w * 4;
+            var pixels = new byte[stride * h];
+            converted.CopyPixels(pixels, stride, 0);
+
+            long totalB = 0, totalG = 0, totalR = 0;
+            int count = w * h;
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                totalB += pixels[i];
+                totalG += pixels[i + 1];
+                totalR += pixels[i + 2];
+            }
+
+            double r = (double)totalR / count;
+            double gr = (double)totalG / count;
+            double b = (double)totalB / count;
+            return 0.299 * r + 0.587 * gr + 0.114 * b;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
