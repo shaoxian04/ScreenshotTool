@@ -119,6 +119,28 @@ public static class Win32Interop
     public const uint MOD_SHIFT = 0x0004;
     public const uint VK_S = 0x53;
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ICONINFO
+    {
+        public bool fIcon;       // false => cursor (lets us set a hotspot)
+        public int xHotspot;
+        public int yHotspot;
+        public IntPtr hbmMask;
+        public IntPtr hbmColor;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr CreateIconIndirect(ref ICONINFO icon);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetIconInfo(IntPtr hIcon, ref ICONINFO pIconInfo);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool DestroyCursor(IntPtr hCursor);
+
     /// <summary>Returns the system DPI scale (e.g. 1.25 for 125%).</summary>
     public static double GetDpiScale()
     {
