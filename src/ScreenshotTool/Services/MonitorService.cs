@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using ScreenshotTool.Helpers;
 
 namespace ScreenshotTool.Services;
 
@@ -21,19 +22,26 @@ public class MonitorService
         }).ToList();
     }
 
+    /// <summary>
+    /// Returns the virtual desktop bounds in physical pixels, bypassing WinForms DPI virtualization.
+    /// </summary>
     public System.Drawing.Rectangle GetVirtualDesktopBounds()
     {
-        return SystemInformation.VirtualScreen;
+        return Win32Interop.GetVirtualScreenPhysicalBounds();
     }
 
+    /// <summary>
+    /// Returns the monitor containing the given physical-pixel point, with bounds in physical pixels.
+    /// </summary>
     public MonitorInfo? GetMonitorFromPoint(System.Drawing.Point point)
     {
-        var screen = Screen.FromPoint(point);
+        var bounds = Win32Interop.GetMonitorPhysicalBounds(point);
+        if (bounds.IsEmpty) return null;
         return new MonitorInfo
         {
-            Bounds = screen.Bounds,
-            IsPrimary = screen.Primary,
-            DeviceName = screen.DeviceName
+            Bounds = bounds,
+            IsPrimary = Win32Interop.IsMonitorPrimary(point),
+            DeviceName = string.Empty
         };
     }
 }

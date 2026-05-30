@@ -125,6 +125,18 @@ public partial class ToolbarControl : UserControl
         CancelClicked?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Returns the pixel size of the visible toolbar bar (excludes the floating color palette).</summary>
+    public Size BarSize
+    {
+        get
+        {
+            ToolbarBar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var w = ToolbarBar.ActualWidth > 0 ? ToolbarBar.ActualWidth : ToolbarBar.DesiredSize.Width;
+            var h = ToolbarBar.ActualHeight > 0 ? ToolbarBar.ActualHeight : ToolbarBar.DesiredSize.Height;
+            return new Size(w > 0 ? w : 480, h > 0 ? h : 44);
+        }
+    }
+
     public void ResetTools()
     {
         foreach (var btn in _toolButtons)

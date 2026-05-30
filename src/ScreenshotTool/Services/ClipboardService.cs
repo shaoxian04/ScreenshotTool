@@ -13,7 +13,7 @@ public static class ClipboardService
     {
         var rendered = AnnotationRenderer.RenderToImage(screenshot, selectionBounds, annotations, dpiScale: dpiScale);
 
-        // Also create a PNG stream for better compatibility
+        // Create a PNG stream for better compatibility
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(rendered));
 

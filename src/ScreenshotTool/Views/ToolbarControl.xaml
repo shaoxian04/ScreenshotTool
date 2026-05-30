@@ -4,7 +4,7 @@
              xmlns:models="clr-namespace:ScreenshotTool.Models"
              Background="Transparent">
     <Canvas x:Name="ToolbarCanvas">
-        <Border Background="#F0222222" CornerRadius="8" Padding="6,4"
+        <Border x:Name="ToolbarBar" Background="#F0222222" CornerRadius="8" Padding="6,4"
                 Canvas.Left="0" Canvas.Top="0"
                 MouseLeftButtonDown="Border_MouseLeftButtonDown"
                 MouseLeftButtonUp="Border_MouseLeftButtonUp"
@@ -135,20 +135,21 @@
                         Click="Ocr_Click">
                     <Viewbox Width="18" Height="18">
                         <Canvas Width="24" Height="24">
-                            <!-- Document outline -->
+                            <!-- Viewfinder corner brackets -->
                             <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                  StrokeThickness="1.5" StrokeLineJoin="Round"
-                                  Data="M 4,2 L 16,2 L 20,6 L 20,22 L 4,22 Z M 16,2 L 16,6 L 20,6"/>
-                            <!-- Text lines -->
+                                  StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Data="M 4,9 L 4,4 L 9,4  M 15,4 L 20,4 L 20,9  M 20,15 L 20,20 L 15,20  M 9,20 L 4,20 L 4,15"/>
+                            <!-- Text lines inside -->
                             <Line X1="7" Y1="10" X2="17" Y2="10"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                            <Line X1="7" Y1="13.5" X2="17" Y2="13.5"
+                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.6"/>
+                            <Line X1="7" Y1="14" X2="14" Y2="14"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                            <Line X1="7" Y1="17" X2="13" Y2="17"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                  StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.6"/>
+                            <!-- Cyan scan beam -->
+                            <Line X1="4" Y1="12" X2="20" Y2="12"
+                                  Stroke="#00CFFF" StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                         </Canvas>
                     </Viewbox>
                 </Button>
